@@ -67,6 +67,7 @@ Detalhes e a análise das junções que reduziram 8 → 5 repos em [`01-reposito
 | [`06-mapeamento-oci.md`](06-mapeamento-oci.md) | Mapeamento enxuto para serviços da OCI |
 | [`07-roadmap.md`](07-roadmap.md) | Fases, rastreabilidade dos requisitos (RF-01…RF-16), o que fica para depois |
 | [`contracts.md`](contracts.md) | Contrato de domínio compartilhado (`Conversation`, `AnalysisResult`, `RiskAnalyzer`) |
+| [`regras-de-negocio.md`](regras-de-negocio.md) | Regras de negócio do núcleo: pilares, taxonomia, fatores do Risk Engine, score/prioridade, alerta, hard negatives, privacidade |
 
 ---
 
