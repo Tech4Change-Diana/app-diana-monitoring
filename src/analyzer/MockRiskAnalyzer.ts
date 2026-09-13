@@ -21,8 +21,8 @@ import type {
   ModelMetadata,
   SignalSeverity,
 } from "../contracts/index.js";
-import { preprocessConversation } from "../pipeline/preprocess.js";
-import { extractFeatures } from "../pipeline/featureExtractor.js";
+import { detectPii } from "../pipeline/preprocess.js";
+import { extractFeatures, type MessageMatch } from "../pipeline/featureExtractor.js";
 import { analyzeContext } from "../pipeline/contextualAnalyzer.js";
 import { buildExplanation } from "../pipeline/explainability.js";
 import { evaluateRisk } from "../risk-engine/index.js";
@@ -114,41 +114,24 @@ export class MockRiskAnalyzer implements RiskAnalyzer {
   /** Predição do "modelo": sinais + features (sem explicação). */
   predict(conversation: Conversation): ModelPrediction {
     const { features, matches } = extractFeatures(conversation);
-
-    const signals: DetectedSignal[] = Object.entries(SIGNAL_CATALOG)
-      .map(([key, entry]) => {
-        const messageIds = matches
-          .filter((m) => m.signalKeys.includes(key))
-          .map((m) => m.messageId);
-        if (messageIds.length === 0) return null;
-
-        const confidence = Math.min(
-          CONFIDENCE_CEILING,
-          CONFIDENCE_FLOOR + CONFIDENCE_STEP * (messageIds.length - 1),
-        );
-
-        return {
-          id: `sig-${key}`,
-          type: key,
-          confidence: Math.round(confidence * 100) / 100,
-          messageIds,
-          title: entry.title,
-          description: entry.description,
-          severity: entry.severity,
-        } satisfies DetectedSignal;
-      })
-      .filter((s): s is DetectedSignal => s !== null);
-
-    return { signals, features };
+    return { signals: buildSignals(matches), features };
   }
 
-  /** Implementação da interface `RiskAnalyzer` — análise completa, sem latência. */
+  /**
+   * Implementação da interface `RiskAnalyzer` — análise completa, sem latência.
+   *
+   * A extração de sinais roda sobre o texto ORIGINAL em memória (§9); a detecção
+   * de PII (`detectPii`) apenas inspeciona, sem mascarar o texto que alimenta a
+   * detecção — pseudonimizar antes destruiria o pilar "informação pessoal".
+   */
   async analyzeConversation(conversation: Conversation): Promise<AnalysisResult> {
-    const { conversation: prepared, privacy, piiFindings } = preprocessConversation(conversation);
-    const { features, matches } = extractFeatures(prepared);
-    const { signals } = this.predict(prepared);
+    const { privacy, piiFindings } = detectPii(conversation);
+    // Uma única extração de features/matches (sem re-extrair em predict).
+    const { features, matches } = extractFeatures(conversation);
+    const signals = buildSignals(matches);
 
-    const factors = analyzeContext(features, signals);
+    const orderedMessageIds = conversation.messages.map((m) => m.id);
+    const factors = analyzeContext(features, signals, orderedMessageIds);
     const assessment = evaluateRisk(features, signals, factors);
     const explanation = buildExplanation(assessment, signals, factors);
 
@@ -164,6 +147,31 @@ export class MockRiskAnalyzer implements RiskAnalyzer {
       processedAt: new Date().toISOString(),
     };
   }
+}
+
+/** Constrói os `DetectedSignal[]` a partir dos matches já extraídos (sem re-extrair). */
+function buildSignals(matches: MessageMatch[]): DetectedSignal[] {
+  return Object.entries(SIGNAL_CATALOG)
+    .map(([key, entry]) => {
+      const messageIds = matches.filter((m) => m.signalKeys.includes(key)).map((m) => m.messageId);
+      if (messageIds.length === 0) return null;
+
+      const confidence = Math.min(
+        CONFIDENCE_CEILING,
+        CONFIDENCE_FLOOR + CONFIDENCE_STEP * (messageIds.length - 1),
+      );
+
+      return {
+        id: `sig-${key}`,
+        type: key,
+        confidence: Math.round(confidence * 100) / 100,
+        messageIds,
+        title: entry.title,
+        description: entry.description,
+        severity: entry.severity,
+      } satisfies DetectedSignal;
+    })
+    .filter((s): s is DetectedSignal => s !== null);
 }
 
 /** Trilha das etapas de ANÁLISE (carimbos ISO 8601). */
