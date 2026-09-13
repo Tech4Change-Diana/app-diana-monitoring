@@ -77,6 +77,12 @@ export class TelegramSource implements IngestSource {
         buckets.set(key, bucket);
       }
 
+      // TRADE-OFF (ADR-0002 / análise §5.4-A): avançar o offset na PAGINAÇÃO já
+      // CONFIRMA no servidor os updates anteriores — antes do `commit()` pós-batch.
+      // Logo, uma falha no meio do batch pode perder os updates já drenados
+      // (o Telegram não os reenvia). É o trade-off aceito da estratégia "drain"
+      // no volume baixo do MVP; `commit()` persiste o offset para continuidade
+      // entre execuções, não como garantia transacional.
       offset = maxUpdateId + 1;
     }
 

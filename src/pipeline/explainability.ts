@@ -20,8 +20,12 @@ export function buildExplanation(
   signals: DetectedSignal[],
   factors: ContextualFactor[],
 ): ExplanationResult {
+  // Ranquear por PESO de severidade (não alfabético) e depois confiança — a
+  // severidade alta é a salvaguarda contra falso negativo (§6.6/§8) e deve
+  // liderar o top-3 exibido ao responsável (§7.1).
+  const SEVERITY_RANK = { high: 3, medium: 2, low: 1 } as const;
   const sorted = [...signals].sort(
-    (a, b) => b.severity.localeCompare(a.severity) || b.confidence - a.confidence,
+    (a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity] || b.confidence - a.confidence,
   );
 
   const topSignals = sorted.slice(0, 3);

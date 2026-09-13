@@ -19,7 +19,7 @@
  */
 import type { AnalysisResult, Conversation } from "../contracts/index.js";
 import type { RiskAnalyzer } from "../analyzer/RiskAnalyzer.js";
-import { preprocessConversation } from "./preprocess.js";
+import { detectPii } from "./preprocess.js";
 import { compress, decompress, type CompressedBlock } from "./compression.js";
 import { encrypt, decrypt, type EncryptedEnvelope } from "./crypto.js";
 import { partitionMessages, reconstructWindow } from "./partitioning.js";
@@ -61,17 +61,18 @@ export async function runPipeline(
     `Conversa ${conversation.id} recebida (${conversation.messages.length} mensagens)`,
   );
 
-  // 2 · NORMALIZING (normalização + pseudonimização de PII) — privacy autoritativo.
-  const prepared = preprocessConversation(conversation);
+  // 2 · NORMALIZING — detecção de PII (privacy autoritativo do batch). NÃO
+  // mascara o texto usado na detecção de sinais (§9): a extração roda sobre o
+  // texto original em memória; a pseudonimização vale só para o que sai da
+  // memória. Ver ADR-0001 e o comentário em `preprocess.ts`.
+  const { privacy, piiFindings } = detectPii(conversation);
   audit.record(
     "NORMALIZING",
-    prepared.piiFindings.length
-      ? `Normalizado · ${prepared.piiFindings.length} PII pseudonimizada(s)`
-      : "Normalizado",
+    piiFindings.length ? `Normalizado · ${piiFindings.length} PII detectada(s)` : "Normalizado",
   );
 
-  // 3 · COMPRESSED (placeholder: identidade).
-  const compressed: CompressedBlock = compress(prepared.conversation.messages);
+  // 3 · COMPRESSED (placeholder: identidade). Opera sobre o texto original.
+  const compressed: CompressedBlock = compress(conversation.messages);
   audit.record("COMPRESSED", `Compactado (${compressed.algorithm})`);
 
   // 4 · PARTITIONED (partições temporais P1..Pn — janela N × BATCH).
@@ -115,7 +116,7 @@ export async function runPipeline(
       messages,
     })),
   );
-  const reconstructed: Conversation = { ...prepared.conversation, messages: windowMessages };
+  const reconstructed: Conversation = { ...conversation, messages: windowMessages };
   audit.record("CONTEXT_BUILDING", `Janela reconstruída com ${windowMessages.length} mensagens`);
 
   // 11 · ANALYZING — interpretação via RiskAnalyzer (mock por padrão).
@@ -141,7 +142,7 @@ export async function runPipeline(
   // O orquestrador tem a palavra final sobre privacy (batch) e audit (máquina de estados).
   const result: AnalysisResult = {
     ...analysis,
-    privacy: prepared.privacy,
+    privacy,
     audit: audit.toArray(),
   };
 
