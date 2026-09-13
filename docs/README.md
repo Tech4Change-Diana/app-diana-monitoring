@@ -68,6 +68,7 @@ Detalhes e a análise das junções que reduziram 8 → 5 repos em [`01-reposito
 | [`07-roadmap.md`](07-roadmap.md) | Fases, rastreabilidade dos requisitos (RF-01…RF-16), o que fica para depois |
 | [`contracts.md`](contracts.md) | Contrato de domínio compartilhado (`Conversation`, `AnalysisResult`, `RiskAnalyzer`) |
 | [`regras-de-negocio.md`](regras-de-negocio.md) | Regras de negócio do núcleo: pilares, taxonomia, fatores do Risk Engine, score/prioridade, alerta, hard negatives, privacidade |
+| [`analise-tecnica-fase1.md`](analise-tecnica-fase1.md) | Plano técnico da Fase 1: porte do protótipo mock para o núcleo de background (ingestor + pipeline + risk-engine), scaffolding Node+TS, mapa protótipo→alvo e checklist de PRs |
 
 ---
 
